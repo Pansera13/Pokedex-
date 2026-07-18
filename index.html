@@ -99,6 +99,7 @@
     <div class="stats">
       <span>Exibindo <b id="showCount">0</b> de <b id="totalCount">0</b></span>
       <span class="dup-count">Repetidas marcadas: <b id="dupCount">0</b></span>
+      <span id="saveStatus" style="color:var(--text-muted);"></span>
       <button class="clear-btn" id="clearBtn">limpar marcacoes</button>
     </div>
   </header>
@@ -119,6 +120,7 @@
   const showCountEl = document.getElementById('showCount');
   const totalCountEl = document.getElementById('totalCount');
   const dupCountEl = document.getElementById('dupCount');
+  const saveStatusEl = document.getElementById('saveStatus');
 
   let checked = new Set();
   let activeGen = 0;
@@ -127,26 +129,38 @@
 
   const STORAGE_KEY = 'pokedex-dupes';
 
+  function setStatus(text, isError){
+    if(!saveStatusEl) return;
+    saveStatusEl.textContent = text;
+    saveStatusEl.style.color = isError ? 'var(--dup)' : 'var(--text-muted)';
+  }
+
   async function loadState(){
+    setStatus('Carregando dados salvos...');
     try{
       const res = await window.storage.get(STORAGE_KEY, false);
       if(res && res.value){
         const arr = JSON.parse(res.value);
         checked = new Set(arr);
       }
+      setStatus(checked.size ? 'Dados carregados' : '');
     }catch(e){
-      // no saved state yet
+      setStatus('');
     }
     render();
   }
 
   function saveState(){
+    setStatus('Salvando...');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async ()=>{
       try{
         await window.storage.set(STORAGE_KEY, JSON.stringify(Array.from(checked)), false);
+        setStatus('Salvo');
+        setTimeout(()=>setStatus(''), 1500);
       }catch(e){
         console.error('storage error', e);
+        setStatus('Erro ao salvar - tente novamente', true);
       }
     }, 250);
   }

@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Desfile</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #5ec8f2; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; }
+  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(20, 10, 40, .55); padding: 16px; box-sizing: border-box; }
+  #overlay.show { display: flex; animation: fade .4s ease-out; }
+  #card { background: #fff6e0; color: #3b2414; max-width: 520px; width: 100%; max-height: 90vh; overflow: auto; box-sizing: border-box; padding: 22px 20px 18px; text-align: center; font-family: "Courier New", Courier, monospace; font-weight: bold;
+          border: 6px solid #3b2414; box-shadow: 0 0 0 6px #f4d03f, 0 0 0 12px #3b2414, 10px 14px 0 12px rgba(0,0,0,.35); image-rendering: pixelated; animation: pop .55s cubic-bezier(.2, 1.6, .4, 1); }
+  #card h1 { margin: 4px 0 12px; font-size: 30px; color: #c0392b; letter-spacing: 2px; text-shadow: 3px 3px 0 #f4d03f; }
+  #card p { margin: 0 0 16px; font-size: 18px; line-height: 1.45; white-space: pre-line; }
+  #heart { width: 66px; height: 60px; margin: 0 auto 6px; image-rendering: pixelated; animation: beat 1s infinite; }
+  #again { font: inherit; font-size: 16px; background: #c0392b; color: #fff; border: 4px solid #3b2414; padding: 8px 18px; box-shadow: 4px 4px 0 #3b2414; cursor: pointer; }
+  #again:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 #3b2414; }
+  @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes pop { 0% { transform: scale(.2) rotate(-8deg); opacity: 0 } 100% { transform: scale(1) rotate(0); opacity: 1 } }
+  @keyframes beat { 0%, 100% { transform: scale(1) } 15% { transform: scale(1.18) } 30% { transform: scale(1) } 45% { transform: scale(1.12) } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="overlay">
+  <div id="card">
+    <canvas id="heart" width="11" height="10"></canvas>
+    <h1 id="title"></h1>
+    <p id="msg"></p>
+    <button id="again">↺ Ver de novo</button>
+  </div>
+</div>
+<script>
+// ======================================================
+//  EDITE AQUI A MENSAGEM QUE APARECE QUANDO O PRESENTE ABRE
+// ======================================================
+const TITULO = "Me desculpa!";
+const MENSAGEM =
+  "Eu sei que errei e sinto muito, de verdade.\n" +
+  "Juntei até um rei, um ogro e um cowboy pra te pedir:\n" +
+  "você me perdoa? ❤";
+// ======================================================
+
+document.getElementById("title").textContent = TITULO;
+document.getElementById("msg").textContent = MENSAGEM;
+
+// ---------- Sprites (cada letra = uma cor, "." = transparente) ----------
+const LEGS_A = [
+  "...pp..pp...",
+  "...pp..pp...",
+  "...pp..pp...",
+  "..ooo..ooo..",
+];
+const LEGS_B = [
+  "...pp..pp...",
+  "..pp....pp..",
+  ".pp......pp.",
+  ".oo......oo.",
+];
+
+const CHARACTERS = [
+  { name: "cowboy",
+    pal: { h: "#8b5a2b", H: "#3b2414", s: "#f1c27d", k: "#222", m: "#5a3a1a", r: "#c0392b", v: "#6d4c2f", b: "#3b2414", y: "#f4d03f", p: "#2e5c9a", o: "#5a3a1a" },
+    top: [
+      "....hhhh....",
+      "...hhhhhh...",
+      "...HHHHHH...",
+      "hhhhhhhhhhhh",
+      "...ssssss...",
+      "...skssks...",
+      "...ssssss...",
+      "...smmmms...",
+      "..vrrrrrrv..",
+      ".svvrrrrvvs.",
+      ".s.vrrrrv.s.",
+      "...bbyybb...",
+    ] },
+  { name: "rei",
+    pal: { y: "#f4d03f", r: "#e74c3c", b: "#3498db", s: "#f1c27d", k: "#222", w: "#ecf0f1", c: "#8e1b2c", f: "#ffffff", p: "#8e1b2c", o: "#f4d03f" },
+    top: [
+      "..y..yy..y..",
+      "..yyyyyyyy..",
+      "..yryybyry..",
+      "...ssssss...",
+      "...skssks...",
+      "...ssssss...",
+      "..wwssssww..",
+      "..wwwwwwww..",
+      "..cfwwwwfc..",
+      ".scccwwcccs.",
+      ".sccccfcccs.",
+      "..fffffffff.",
+    ] },
+  { name: "ogro",
+    pal: { g: "#6ab04c", G: "#3e7a2a", k: "#222", t: "#ffffff", n: "#8d6e63", N: "#4e342e", p: "#6ab04c", o: "#4e342e" },
+    top: [
+      "...gggggg...",
+      "..gggggggg..",
+      "gGGkggggkGGg",
+      "g.gggggggg.g",
+      "..ggggGggg..",
+      "..gtkkkktg..",
+      "...gggggg...",
+      "gnnnnnnnnnng",
+      "gnnnnnnnnnng",
+      "gg.nnnnnn.gg",
+      "...NNNNNN...",
+      "...nnnnnn...",
+    ] },
+  { name: "cavaleiro",
+    pal: { a: "#b0b7bf", A: "#6c757d", r: "#e74c3c", k: "#222", b: "#2e5c9a", y: "#f4d03f", p: "#b0b7bf", o: "#6c757d" },
+    top: [
+      ".....rr.....",
+      "....rrr.....",
+      "...aaaaaa...",
+      "..aaaaaaaa..",
+      "..aAAAAAAa..",
+      "..akkkkkka..",
+      "..aaaaaaaa..",
+      "...aAAAAa...",
+      ".aaabbbbaaa.",
+      ".aAabyybaAa.",
+      ".aAabbbbaAa.",
+      "...AAAAAA...",
+    ] },
+  { name: "mago",
+    pal: { u: "#2c3e91", y: "#f4d03f", s: "#f1c27d", k: "#222", w: "#ecf0f1", p: "#2c3e91", o: "#5a3a1a" },
+    top: [
+      ".....u......",
+      "....uuu.....",
+      "....uyuu....",
+      "...uuuuuu...",
+      ".uuuuuuuuuu.",
+      "...ssssss...",
+      "...skssks...",
+      "...wwwwww...",
+      "..wwwwwwww..",
+      ".uuwwwwwwuu.",
+      ".suuwwwwuus.",
+      "..uuuwwuuu..",
+    ] },
+  { name: "pirata",
+    pal: { r: "#c0392b", s: "#f1c27d", k: "#222", b: "#2d2d2d", w: "#ecf0f1", n: "#1f3a6b", y: "#f4d03f", p: "#5a3a1a", o: "#222" },
+    top: [
+      "............",
+      "...rrrrrr...",
+      "..rrrrrrrrr.",
+      "...ssssss.r.",
+      "...kksssks..",
+      "...kkssss...",
+      "...sbbbbs...",
+      "....bbbb....",
+      "..wnwnwnwn..",
+      ".swnwnwnwns.",
+      ".s.nwnwnw.s.",
+      "...kkyykk...",
+    ] },
+  { name: "ninja",
+    pal: { k: "#1d1d1d", K: "#3a3a3a", r: "#e74c3c", s: "#f1c27d", w: "#ffffff", p: "#1d1d1d", o: "#3a3a3a" },
+    top: [
+      "............",
+      "...kkkkkk...",
+      "..rrrrrrrrrr",
+      "..kkkkkkkk.r",
+      "..kswsswsk..",
+      "..kkkkkkkk..",
+      "...kkkkkk...",
+      "....kkkk....",
+      "..kkkkkkkk..",
+      ".kkKkkkkKkk.",
+      ".k.kkkkkk.k.",
+      "...rrrrrr...",
+    ] },
+  { name: "robo",
+    pal: { m: "#95a5a6", M: "#566573", c: "#00e5ff", r: "#e74c3c", k: "#222", y: "#f4d03f", p: "#95a5a6", o: "#566573" },
+    top: [
+      ".....r......",
+      ".....M......",
+      "...mmmmmm...",
+      "..mmmmmmmm..",
+      "..mccmmccm..",
+      "..mmmmmmmm..",
+      "..mMkMkMkm..",
+      "...mmmmmm...",
+      ".MmmmmmmmmM.",
+      ".MmMyrMymmM.",
+      ".M.mmmmmm.M.",
+      "...MMMMMM...",
+    ] },
+  { name: "viking",
+    pal: { h: "#8e9aa6", w: "#f5e6c8", s: "#f1c27d", k: "#222", e: "#e67e22", b: "#7b4a2a", B: "#4e2f1a", p: "#4e2f1a", o: "#7b4a2a" },
+    top: [
+      "w..........w",
+      "w..hhhhhh..w",
+      ".whhhhhhhhw.",
+      "...ssssss...",
+      "...skssks...",
+      "...eesseeo..",
+      "..eeeeeeee..",
+      "...eeeeee...",
+      ".bbbbeebbbb.",
+      ".sbbBBBBbbs.",
+      ".s.bbbbbb.s.",
+      "...BBBBBB...",
+    ] },
+  { name: "chef",
+    pal: { w: "#ffffff", W: "#d0d6dc", s: "#f1c27d", k: "#222", m: "#5a3a1a", r: "#e74c3c", p: "#2d2d2d", o: "#222" },
+    top: [
+      "...wwwwww...",
+      "..wwwwwwww..",
+      "..wwwwwwww..",
+      "...WWWWWW...",
+      "...ssssss...",
+      "...skssks...",
+      "...smmmms...",
+      "....rrrr....",
+      "..wwwwwwww..",
+      ".swwkwwkwws.",
+      ".s.wwwwww.s.",
+      "...wwwwww...",
+    ] },
+];
+
+const HORSE_TOP = [
+  "...............MM...",
+  "..............MBBB..",
+  ".............MBBkBB.",
+  ".............MBBBBBB",
+  "............MBBB.BBn",
+  "...........MBBB.....",
+  "..BBBBBBBBBBBBB.....",
+  ".MBBBBBBBBBBBBB.....",
+  "M.BBBBBBBBBBBBB.....",
+  "M.BBBBBBBBBBBB......",
+];
+const HORSE_A = [
+  "..B.B.......B.B.....",
+  "..B.B.......B.B.....",
+  "..B.B.......B.B.....",
+  "..k.k.......k.k.....",
+];
+const HORSE_B = [
+  ".B...B.....B...B....",
+  ".B...B.....B...B....",
+  "B.....B...B.....B...",
+  "k.....k...k.....k...",
+];
+const HORSE_PAL = { B: "#a0662f", M: "#3b2414", k: "#222", n: "#3b2414" };
+
+const HEART = [
+  ".rr...rr...",
+  "rwrr.rrrr..",
+  "rwrrrrrrr..",
+  "rrrrrrrrr..",
+  ".rrrrrrr...",
+  "..rrrrr....",
+  "...rrr.....",
+  "....r......",
+];
+const HEART_PAL = { r: "#e8344e", w: "#ffb3c1" };
+
+function makeSprite(rows, pal) {
+  const w = Math.max(...rows.map(r => r.length)), h = rows.length;
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const g = cv.getContext("2d");
+  rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const col = pal[row[x]];
+      if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
+    }
+  });
+  return cv;
+}
+
+const charSprites = CHARACTERS.map(c => [
+  makeSprite(c.top.concat(LEGS_A), c.pal),
+  makeSprite(c.top.concat(LEGS_B), c.pal),
+]);
+const horseSprites = [makeSprite(HORSE_TOP.concat(HORSE_A), HORSE_PAL), makeSprite(HORSE_TOP.concat(HORSE_B), HORSE_PAL)];
+const heartSprite = makeSprite(HEART, HEART_PAL);
+
+// coração do cartão
+(() => {
+  const hc = document.getElementById("heart").getContext("2d");
+  hc.drawImage(heartSprite, 0, 1);
+})();
+
+// ---------- Canvas / escala ----------
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, P = 4, Wu = 0, Hu = 0, dpr = 1;
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  P = Math.max(2, Math.floor(Math.min(H / 72, W / 60)));
+  Wu = W / P; Hu = H / P;
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ---------- Estado ----------
+const SPACING = 22, SPEED = 34;
+let chars, horse, gift, particles, clouds, opened, openT, time, hintT;
+
+function reset() {
+  chars = CHARACTERS.map((c, i) => ({ i, x: -16 - i * SPACING, phase: Math.random() * 10, speed: SPEED + (i % 3) * 1.5, jump: 0 }));
+  const n = CHARACTERS.length;
+  horse = { x: -n * SPACING - 70, speed: SPEED, stopped: false, legT: 0 };
+  gift = { lidY: 0, lidVy: 0, lidRot: 0, lidVr: 0, lidX: 0 };
+  particles = [];
+  opened = false; openT = 0; time = 0; hintT = 0;
+  clouds = clouds || Array.from({ length: 6 }, (_, i) => ({ x: Math.random() * 200, y: 4 + Math.random() * 18, s: 0.6 + Math.random() * 0.8, v: 2 + Math.random() * 3 }));
+  document.getElementById("overlay").classList.remove("show");
+}
+reset();
+
+// geometria do conjunto cavalo + carroça (em unidades)
+const CART_W = 22, SHAFT = 4, HORSE_W = 20;
+function groupWidth() { return CART_W + SHAFT + HORSE_W; }
+function targetX() { return Wu / 2 - groupWidth() / 2; }
+
+function groundY() { return Math.round(Hu * 0.70); }
+
+// ---------- Desenho ----------
+function px(x) { return Math.round(x * P); }
+function rect(x, y, w, h, col) { ctx.fillStyle = col; ctx.fillRect(px(x), px(y), Math.ceil(w * P), Math.ceil(h * P)); }
+function sprite(img, x, y) { ctx.drawImage(img, px(x), px(y), img.width * P, img.height * P); }
+
+function drawCloud(cl) {
+  const x = cl.x, y = cl.y, s = cl.s;
+  const c = "#ffffff";
+  rect(x + 2 * s, y, 8 * s, 2 * s, c);
+  rect(x, y + 2 * s, 14 * s, 3 * s, c);
+  rect(x + 4 * s, y - 2 * s, 5 * s, 2 * s, c);
+}
+
+function drawBackground() {
+  const gy = groundY();
+  // céu em faixas
+  const bands = ["#5ec8f2", "#72d0f3", "#88d8f5", "#a0e0f7", "#b8e8f8"];
+  const bh = gy / bands.length;
+  bands.forEach((c, i) => rect(0, i * bh, Wu + 1, bh + 1, c));
+  // sol
+  rect(Wu - 20, 6, 10, 10, "#ffe066"); rect(Wu - 21, 8, 12, 6, "#ffe066"); rect(Wu - 18, 5, 6, 12, "#ffe066");
+  clouds.forEach(drawCloud);
+  // colinas
+  for (let x = 0; x < Wu + 8; x += 2) {
+    const h1 = 6 + Math.sin(x * 0.06) * 4 + Math.sin(x * 0.13) * 2;
+    rect(x, gy - h1, 2, h1, "#7cc576");
+  }
+  // chão
+  rect(0, gy, Wu + 1, Hu - gy + 1, "#5aa83e");
+  rect(0, gy, Wu + 1, 1, "#3e8a2a");
+  rect(0, gy + 14, Wu + 1, Hu, "#4c9a34");
+  // estrada de terra
+  rect(0, gy + 4, Wu + 1, 9, "#c99a5b");
+  rect(0, gy + 4, Wu + 1, 1, "#a87a40");
+  for (let x = 3; x < Wu; x += 11) rect(x, gy + 8 + (x % 3), 2, 1, "#a87a40");
+  // tufos
+  for (let x = 1; x < Wu; x += 9) { rect(x, gy + 16 + (x % 5), 1, 2, "#3e8a2a"); rect(x + 1, gy + 15 + (x % 5), 1, 3, "#3e8a2a"); }
+}
+
+function drawChar(ch) {
+  const gy = groundY();
+  const frame = Math.floor(ch.phase * 8) % 2;
+  const bob = frame === 1 ? -1 : 0;
+  let jump = 0;
+  if (opened) jump = -Math.abs(Math.sin(time * 6 + ch.i)) * 6;
+  const y = gy + 2 - 16 + bob + jump;
+  // sombra
+  rect(ch.x + 2, gy + 2, 8, 1, "rgba(0,0,0,.18)");
+  sprite(charSprites[ch.i][opened ? 0 : frame], ch.x, y);
+}
+
+function drawWheel(cx, cy, r, ang) {
+  // aro pixelado
+  for (let a = 0; a < 16; a++) {
+    const t = a / 16 * Math.PI * 2;
+    rect(Math.round(cx + Math.cos(t) * r) - 0.5, Math.round(cy + Math.sin(t) * r) - 0.5, 1, 1, "#3b2414");
+  }
+  for (let k = 0; k < 4; k++) {
+    const t = ang + k * Math.PI / 4;
+    for (let d = -r + 1; d <= r - 1; d++) rect(Math.round(cx + Math.cos(t) * d) - 0.5, Math.round(cy + Math.sin(t) * d) - 0.5, 1, 1, "#6d4c2f");
+  }
+  rect(cx - 0.5, cy - 0.5, 1, 1, "#f4d03f");
+}
+
+function giftBox() {
+  // posição do presente em unidades
+  const gy = groundY();
+  const baseY = gy + 12 - 4 - 6; // topo da carroça
+  return { x: horse.x + 5, y: baseY - 10, w: 12, h: 10 };
+}
+
+function drawHorseGroup() {
+  const gy = groundY();
+  const feet = gy + 12;
+  const x0 = horse.x;
+  const moving = !horse.stopped;
+  const frame = moving ? Math.floor(horse.legT * 7) % 2 : 0;
+  const wheelAng = horse.x * 0.25;
+
+  // sombra
+  rect(x0 + 1, feet, groupWidth() - 2, 1, "rgba(0,0,0,.2)");
+
+  // carroça
+  const cartTop = feet - 4 - 6;
+  rect(x0, cartTop, CART_W, 6, "#8b5a2b");
+  rect(x0, cartTop, CART_W, 1, "#b07a43");
+  rect(x0, cartTop + 5, CART_W, 1, "#5a3a1a");
+  for (let i = 3; i < CART_W; i += 5) rect(x0 + i, cartTop + 1, 1, 4, "#6d4c2f");
+  // varal
+  rect(x0 + CART_W, cartTop + 2, SHAFT + 4, 1, "#5a3a1a");
+  drawWheel(x0 + 5, feet - 4, 4, wheelAng);
+  drawWheel(x0 + CART_W - 5, feet - 4, 4, wheelAng);
+
+  // presente
+  const b = giftBox();
+  const bounce = (!opened && horse.stopped) ? -Math.abs(Math.sin(time * 4)) * 1.5 : 0;
+  const bx = b.x, by = b.y + 3;
+  rect(bx, by, b.w, b.h - 3, "#e8344e");
+  rect(bx, by, b.w, 1, "#ff6b81");
+  rect(bx + b.w / 2 - 1, by, 2, b.h - 3, "#f4d03f");
+  rect(bx, by + 3, b.w, 1.5, "#f4d03f");
+
+  // tampa
+  ctx.save();
+  const lidW = b.w + 2;
+  const lx = bx - 1 + gift.lidX, ly = by - 3 + gift.lidY + bounce;
+  ctx.translate(px(lx + lidW / 2), px(ly + 1.5));
+  ctx.rotate(gift.lidRot);
+  ctx.translate(-px(lx + lidW / 2), -px(ly + 1.5));
+  rect(lx, ly, lidW, 3, "#d62845");
+  rect(lx, ly, lidW, 1, "#ff6b81");
+  rect(lx + lidW / 2 - 1, ly, 2, 3, "#f4d03f");
+  // laço
+  rect(lx + lidW / 2 - 4, ly - 2, 3, 2, "#f4d03f");
+  rect(lx + lidW / 2 + 1, ly - 2, 3, 2, "#f4d03f");
+  rect(lx + lidW / 2 - 1, ly - 1, 2, 1, "#e0b020");
+  ctx.restore();
+
+  // brilho de dentro quando aberto
+  if (opened) {
+    const a = Math.min(1, openT * 2);
+    ctx.globalAlpha = a * (0.6 + 0.4 * Math.sin(time * 10));
+    rect(bx + 2, by - 6, 2, 5, "#fff3a0");
+    rect(bx + 5, by - 9, 2, 8, "#fff3a0");
+    rect(bx + 8, by - 6, 2, 5, "#fff3a0");
+    ctx.globalAlpha = 1;
+  }
+
+  // cavalo
+  const hx = x0 + CART_W + SHAFT;
+  const hbob = moving && frame ? -1 : 0;
+  sprite(horseSprites[frame], hx, feet - 14 + hbob);
+  // arreio
+  rect(hx + 2, feet - 14 + 7 + hbob, 1, 3, "#c0392b");
+}
+
+function drawHint() {
+  if (!horse.stopped || opened) return;
+  const b = giftBox();
+  const ax = b.x + b.w / 2 - 2;
+  const ay = b.y - 13 + Math.sin(time * 5) * 1.5;
+  rect(ax, ay, 4, 4, "#ffffff");
+  rect(ax - 2, ay + 4, 8, 1, "#ffffff");
+  rect(ax - 1, ay + 5, 6, 1, "#ffffff");
+  rect(ax, ay + 6, 4, 1, "#ffffff");
+  rect(ax + 1, ay + 7, 2, 1, "#ffffff");
+  const fs = Math.max(12, Math.round(P * 3.2));
+  ctx.font = `bold ${fs}px "Courier New", monospace`;
+  ctx.textAlign = "center";
+  const tx = px(b.x + b.w / 2), ty = px(b.y - 15);
+  ctx.fillStyle = "#3b2414"; ctx.fillText("Toque no presente!", tx + 2, ty + 2);
+  ctx.fillStyle = "#ffffff"; ctx.fillText("Toque no presente!", tx, ty);
+}
+
+function spawnBurst() {
+  const b = giftBox();
+  const cols = ["#e8344e", "#f4d03f", "#3498db", "#2ecc71", "#9b59b6", "#ff8a00", "#ffffff"];
+  for (let i = 0; i < 90; i++) {
+    const heart = i % 6 === 0;
+    particles.push({
+      x: b.x + b.w / 2, y: b.y + 2,
+      vx: (Math.random() - 0.5) * 70, vy: -30 - Math.random() * 60,
+      c: cols[i % cols.length], heart, life: 3 + Math.random() * 2, s: heart ? 1 : 1 + (i % 2),
+    });
+  }
+}
+
+function drawParticles(dt) {
+  particles.forEach(p => {
+    p.vy += 45 * dt; p.vx *= (1 - 0.6 * dt);
+    p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+    if (p.heart) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+      ctx.drawImage(heartSprite, px(p.x), px(p.y), heartSprite.width * P * 0.5, heartSprite.height * P * 0.5);
+      ctx.globalAlpha = 1;
+    } else rect(p.x, p.y, p.s, p.s, p.c);
+  });
+  particles = particles.filter(p => p.life > 0 && p.y < Hu + 5);
+}
+
+// ---------- Loop ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = now;
+  time += dt;
+
+  clouds.forEach(cl => { cl.x += cl.v * dt; if (cl.x > Wu + 5) cl.x = -20; });
+
+  const n = CHARACTERS.length;
+  const span = Math.max(n * SPACING, Wu + 30);
+  chars.forEach(ch => {
+    if (!opened) { ch.x += ch.speed * dt; ch.phase += dt; }
+    if (ch.x > Wu + 4) ch.x -= span;
+  });
+
+  if (!horse.stopped) {
+    const tx = targetX();
+    const dist = tx - horse.x;
+    if (dist < 25) horse.speed = Math.max(6, SPEED * dist / 25);
+    horse.x += horse.speed * dt;
+    horse.legT += dt * (horse.speed / SPEED);
+    if (horse.x >= tx - 0.3) { horse.x = tx; horse.stopped = true; }
+  } else if (!opened) {
+    horse.x = targetX();
+  }
+
+  if (opened) {
+    openT += dt;
+    gift.lidVy += 60 * dt;
+    gift.lidY += gift.lidVy * dt;
+    gift.lidX += 10 * dt;
+    gift.lidRot += gift.lidVr * dt;
+  }
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  drawBackground();
+  chars.forEach(drawChar);
+  drawHorseGroup();
+  drawHint();
+  drawParticles(dt);
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- Toque ----------
+function onTap(ev) {
+  if (opened || !horse.stopped) return;
+  const t = ev.touches ? ev.touches[0] : ev;
+  const ux = t.clientX / P, uy = t.clientY / P;
+  const gy = groundY();
+  const x0 = horse.x - 4, x1 = horse.x + groupWidth() + 4;
+  const y0 = gy - 32, y1 = gy + 16;
+  if (ux >= x0 && ux <= x1 && uy >= y0 && uy <= y1) openGift();
+}
+function openGift() {
+  opened = true; openT = 0;
+  gift.lidVy = -55; gift.lidVr = 4;
+  spawnBurst();
+  if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
+  setTimeout(() => document.getElementById("overlay").classList.add("show"), 1100);
+}
+cv.addEventListener("pointerdown", onTap);
+document.getElementById("again").addEventListener("click", reset);
+</script>
+</body>
+</html>

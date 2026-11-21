@@ -21,6 +21,11 @@ android {
         }
     }
 
+    // A página do app fica em /docs (a mesma usada no GitHub Pages)
+    sourceSets {
+        main.assets.srcDirs = [file('../docs')]
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

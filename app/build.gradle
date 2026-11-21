@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.desculpa.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.desculpa.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    // A página do app fica em /docs (a mesma usada no GitHub Pages)
+    sourceSets {
+        main.assets.srcDirs = [file('../docs')]
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
